@@ -1,0 +1,8 @@
+{
+    "clangd.fallbackFlags": [
+        "-Wall"
+    ],
+    "auto-close-tags.activationOnLanguage": [
+        "*"
+    ]
+}

@@ -6,6 +6,7 @@ import static com.craftinginterpreters.lox.TokenType.*;
 
 // Recursive descent parser
 class Parser {
+    private static class ParseError extends RuntimeException {}
     private final List<Token> tokens;
     private int current = 0;
 
@@ -40,6 +41,8 @@ class Parser {
             Expr right = term();
             expr = new Expr.Binary(expr, operator, right);
         }
+
+        return expr;
     }
 
     private Expr term() {
@@ -112,6 +115,14 @@ class Parser {
         return false;
     }
 
+    private Token consume(TokenType type, String message) {
+        if (check(type)) {
+            return advance();
+        }
+
+        throw error(peek(), message);
+    }
+
     // returns true if the current token is of the given type
     private boolean check(TokenType type) {
         if (isAtEnd()) {
@@ -139,5 +150,12 @@ class Parser {
 
     private Token previous() {
         return tokens.get(current -1);
+    }
+
+    // checks to see if the next token is of the expected type, if so then it consumes the token
+    // if not then we have hit an error and then we report it
+    private ParseError error(Token token, String message) {
+        Lox.error(token, message);
+        return new ParseError();
     }
 }

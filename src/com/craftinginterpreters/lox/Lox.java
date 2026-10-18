@@ -70,6 +70,15 @@ public class Lox {
         System.err.println("[Line " + line + " ] Error" + where + ": " + message );
         hadError = true;
     }
+    
+    // reports an error at a given token, gives its location and the token itself
+    static void error(Token token, String message) {
+        if (token.type == TokenType.EOF) {
+            report(token.line, " at end", message);
+        } else {
+            report(token.line, " at '" + token.lexeme + "'", message);
+        }
+    }
 
     // the error function that reports where an error happened and the message to the error using the report function as a helper
     static void error(int line, String message) {

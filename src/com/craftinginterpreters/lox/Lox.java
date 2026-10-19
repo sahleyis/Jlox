@@ -64,12 +64,7 @@ public class Lox {
         }
     }
 
-    // it passses the line where the error happened, where it happened and its message,
-    // then it prints it out to the System and makes the boolean value hadError to True
-    private static void report(int line, String where, String message) {
-        System.err.println("[Line " + line + " ] Error" + where + ": " + message );
-        hadError = true;
-    }
+    
     
     // reports an error at a given token, gives its location and the token itself
     static void error(Token token, String message) {
@@ -90,12 +85,25 @@ public class Lox {
         Scanner scanner = new Scanner(source);
         List<Token> tokens = scanner.scanTokens();
 
-        for (Token token: tokens) {
-            System.out.println(token);
+        // for (Token token: tokens) {
+        //     System.out.println(token);
+        // }
+
+        Parser parser = new Parser(tokens);
+        Expr expression = parser.parse();
+
+        if (hadError) {
+            return;
         }
+
+        System.out.println(new AstPrinter().print(expression));
     }
 
-
-    
+    // it passses the line where the error happened, where it happened and its message,
+    // then it prints it out to the System and makes the boolean value hadError to True
+    private static void report(int line, String where, String message) {
+        System.err.println("[Line " + line + " ] Error" + where + ": " + message );
+        hadError = true;
+    }
     
 }

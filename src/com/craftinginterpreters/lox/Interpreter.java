@@ -105,6 +105,13 @@ class Interpreter implements Expr.Visitor<Object> {
                 checkNumberOperands(expr.operator, left, right);
                 return (double)left - (double)right;
             case PLUS:
+
+                if (left instanceof String && right instanceof Double) {
+                    return (String)left + (double)right;
+                } else if (left instanceof Double && right instanceof String) {
+                    return (double)left + (String)right;
+                }
+ 
                 if (left instanceof Double && right instanceof Double) {
                     return (double)left + (double)right;
                 }

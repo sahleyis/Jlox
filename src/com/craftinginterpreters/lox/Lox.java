@@ -12,9 +12,11 @@ import java.util.List;
 
 public class Lox {
     // variables
+    private static final Interpreter interpreter = new Interpreter();
 
     // so we dont excecute code that has a known erorr we initialize a hadError variable that we can use to track
     static boolean hadError = false;
+    static boolean hadRuntimeError = false;
 
     // The main function loop, when the argument number is greater than 1 in prints usage and exists, but if its just 1,
     // then it runs the file assuming its a file path and if it has no arguments then it runs a prompt where the user can,
@@ -42,6 +44,9 @@ public class Lox {
         // if theres an error then it will exit the program
         if (hadError) {
             System.exit(65);
+        }
+        if (hadRuntimeError) {
+            System.exit(70);
         }
     }
 
@@ -75,6 +80,11 @@ public class Lox {
         }
     }
 
+    static void runtimeError(RuntimeError error) {
+        System.err.println(error.getMessage() + "\n[line " + error.token.line + "}");
+        hadRuntimeError = true;
+    }
+
     // the error function that reports where an error happened and the message to the error using the report function as a helper
     static void error(int line, String message) {
         report(line, "", message);
@@ -95,6 +105,8 @@ public class Lox {
         if (hadError) {
             return;
         }
+
+        interpreter.interpret(expression);
 
         System.out.println(new AstPrinter().print(expression));
     }

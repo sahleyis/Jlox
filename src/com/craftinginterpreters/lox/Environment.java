@@ -4,6 +4,7 @@ import java.util.HashMap;
 import java.util.Map;;
 
 public class Environment {
+    public static final Object uninitialised = new Object();
     final Environment enclosing;
     private final Map<String, Object> values = new HashMap<>();
 
@@ -20,9 +21,17 @@ public class Environment {
         this.enclosing = enclosing;
     }
 
+
+
     Object get(Token name) {
         if (values.containsKey(name.lexeme)) {
-            return values.get(name.lexeme);
+            Object value = values.get(name.lexeme);
+
+            if ( value == uninitialised ) {
+                throw new RuntimeError(name, "Must initialise variable '" + name.lexeme + "' before it can be used." );
+            }
+
+            return value;
         }  
 
         // if the variable is not found in the enclosing environment it looks in the we try the enclosing one
@@ -30,6 +39,7 @@ public class Environment {
         if (enclosing != null) {
             return enclosing.get(name);
         }
+
 
         throw new RuntimeError(name, "Undefined variable '" + name.lexeme + "' .");
     }
@@ -49,6 +59,8 @@ public class Environment {
 
         throw new RuntimeError(name, "Undefined variable '" + name.lexeme + "'.");
     }
+
+
     void define(String name, Object value) {
         values.put(name, value);
     }

@@ -40,6 +40,25 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     }
 
     @Override 
+    public Object visitLogicalExpr(Expr.Logical expr) {
+        Object left = evaluate(expr.left);
+
+        // we check if we can short-circut as if its true then the OR operator will evaluate to true
+        // if it cant be evaluated to true then thats when we evaluate the right operator
+        if (expr.operator.type == TokenType.OR) {
+            if (isTruthy(left)) {
+                return left;
+            } else {
+                if (!isTruthy(left)) {
+                    return left;
+                }
+            }
+        }
+
+        return evaluate(expr.right);
+    }
+
+    @Override 
     public Object visitUnaryExpr(Expr.Unary expr ) {
         Object right = evaluate(expr.right);
 
@@ -126,6 +145,22 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         return null;
     }
 
+    @Override 
+    public Void visitIfStmt(Stmt.If stmt){
+
+        // first evaluates the condition and if its true it will execute the thenBranch
+        if (isTruthy(evaluate(stmt.condition))) {
+            execute(stmt.thenBranch);
+
+            // then if there is an else branch it will execute that too
+        } else if (stmt.elseBranch != null) {
+            execute(stmt.elseBranch);
+        }
+
+        // returns null if the condition evaluates to false
+        return null;
+    } 
+
     @Override
     public Void visitPrintStmt(Stmt.Print stmt) {
         Object value = evaluate(stmt.expression);
@@ -135,14 +170,14 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
 
     @Override 
     public Void visitVarStmt(Stmt.Var stmt) {
-        Object value = null;
+        Object value = Environment.uninitialised;
         if (stmt.initializer != null) {
             value = evaluate(stmt.initializer);
         }
 
         environment.define(stmt.name.lexeme, value);
         return null;
-    }
+    }  
 
     @Override
     public Object visitAssignExpr(Expr.Assign expr) {

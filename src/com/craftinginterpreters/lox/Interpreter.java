@@ -179,6 +179,27 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         return null;
     }  
 
+    @Override 
+    public Void visitWhileStmt(Stmt.While stmt) {
+        
+        // we use the break exeption to eject us from the loop
+        try {
+            while (isTruthy(evaluate(stmt.condition))) {
+                execute(stmt.body);
+            } 
+        } catch (BreakException exception) {
+            // do nothing and it ejeccts us from the while loop
+        }
+
+        return null;
+    }
+
+    // throws the break exception in order to leave the loop
+    @Override 
+    public Void visitBreakStmt(Stmt.Break stmt) {
+        throw new BreakException();
+    }
+
     @Override
     public Object visitAssignExpr(Expr.Assign expr) {
         Object value = evaluate(expr.value);

@@ -1,12 +1,15 @@
 package com.craftinginterpreters.lox;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import static com.craftinginterpreters.lox.TokenType.*;
 
 // Recursive descent parser
 class Parser {
+    // tracking how deep we are into a loop
+    private int loopDepth = 0;
     private static class ParseError extends RuntimeException {}
     private final List<Token> tokens;
     private int current = 0;
@@ -44,6 +47,9 @@ class Parser {
 
     private Stmt statement() {
 
+        if (match(FOR)) {
+            return forStatement();
+        }
         if (match(IF)) {
             return ifStatement();
         }
@@ -53,13 +59,84 @@ class Parser {
             return printStatement();
         }
 
+        if (match(WHILE)) {
+            return whileStatement();
+        } 
+
+        if (match(BREAK)) {
+            return breakStatement();
+        }
+
         if (match(LEFT_BRACE)) {
             return new Stmt.Block(block());
         }
 
 
+
         return expressionStatement();
     };
+
+    private Stmt forStatement() {
+        consume(LEFT_PAREN, "Expect '(' after 'for'.");
+
+        // this is for the first part of the for loop which is the initializer
+        // if its a semicolon the the initializer has been ommiteed, otherwise we check for the var keyword
+        // to see if its a variable declaration, and if its neither then it must be an expression so we convert it to an expression statement
+        // so that the initializer is always some type of Stmt
+        Stmt initializer;
+        if (match(SEMICOLON)) {
+            initializer = null;
+        } else if (match(VAR)) {
+            initializer = varDeclaration();
+        } else {
+            initializer = expressionStatement();
+        }
+
+        // it checks if there isnt a semicolon and if there isnt then theres a condition and the condition
+        // is an expression
+        Expr condition = null;
+        if (!check(SEMICOLON)) {
+            condition = expression();
+        }
+        consume(SEMICOLON, "Expect ';' after loop condition.");
+        
+        // same thing as the condition except its terminated by the closign parenthesis instead of the next semicolon
+        Expr increment = null;
+        if (!check(RIGHT_PAREN)) {
+            increment = expression();
+        }
+        consume(RIGHT_PAREN, "Expect ')'' after for clauses");
+
+        Stmt body;
+
+        // when it enters a loop it increase the loop depth, parses the statements inside it and stores it into the body variable and then when it leaves it reduces the loop depth
+        try {
+            loopDepth++;
+            body = statement();
+        } finally {
+            loopDepth--;
+        }
+
+        // if there is an increment we execute it after each iteration, we do that by replacing the body
+        // with a little block that contains the original body followed by an expression statement that evaluates the increment
+        if (increment != null) {
+            body = new Stmt.Block(Arrays.asList(body, new Stmt.Expression(increment)));
+        }
+        
+        // if there is no condition then the condition becomes a true value and we create a while loop
+        // with the condition to be true and the body as what executes, it becomes an infinite loop
+        if (condition == null) {
+            condition = new Expr.Literal(true);
+        }
+        body = new Stmt.While(condition, body);
+        // if theres an initializer it runs once efore the entire loop, we do that by replacing the whole statement
+        // with a block that runs the initliazer then executes the loop
+        if (initializer != null) {
+            body = new Stmt.Block(Arrays.asList(initializer, body));
+        }
+
+        return body; 
+    }
 
     private Stmt ifStatement() {
         
@@ -103,6 +180,34 @@ class Parser {
 
         consume(SEMICOLON, "Expect ';' after variable declaration");
         return new Stmt.Var(name, initializer);
+    }
+
+    private Stmt  whileStatement() {
+        consume(LEFT_PAREN, "Expect '(' after 'while'" );
+        Expr condition = expression();
+        consume(RIGHT_PAREN, "Expectt ')' after condition");
+
+        Stmt body;
+
+        // enters a loop and increments it, parses the statements inside it and stores it into the body variable then when its done it leaves the loop depth
+        try {
+            loopDepth++;
+            body = statement();
+        } finally {
+            loopDepth--;
+        }
+
+        return new Stmt.While(condition, body);
+    }
+
+    private Stmt breakStatement() {
+        Token breakToken = previous();
+        if (loopDepth == 0) {
+            throw error(breakToken, "Cannot use 'break' outside of a loop");
+        }
+        consume(SEMICOLON, "Expect ';' after break.");
+
+        return new Stmt.Break(breakToken);
     }
 
     private Stmt expressionStatement() {
@@ -169,6 +274,7 @@ class Parser {
 
         return expr;
     }
+    
     private Expr equality() {
         Expr expr = comparison();
 

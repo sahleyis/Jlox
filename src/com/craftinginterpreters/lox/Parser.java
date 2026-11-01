@@ -38,6 +38,12 @@ class Parser {
                 return varDeclaration();
             }
 
+            // when we encounter the function keyword we call the function function() ( LOL ), we consume
+            // the fun keyword
+            if (match(FUN)) {
+                return function("function");
+            }
+
             return statement();
         } catch(ParseError error) {
             synchronize();
@@ -54,9 +60,12 @@ class Parser {
             return ifStatement();
         }
 
-
         if (match(PRINT)) {
             return printStatement();
+        }
+
+        if (match(RETURN)) {
+            return returnStatement();
         }
 
         if (match(WHILE)) {
@@ -170,6 +179,22 @@ class Parser {
         return new Stmt.Print(value);
     }
 
+    private Stmt returnStatement() {
+
+        // snagging the previously consumed return keyword then we look for a value expression to return
+        Token keyword = previous();
+        Expr value = null;
+
+        // we check if the expression is absent, since a semicolon cant start an expression if the 
+        // next token is that then there must not be a value
+        if (!check(SEMICOLON)) {
+            value = expression();
+        }
+
+        consume(SEMICOLON, "Expect ';' after return value.");
+        return new Stmt.Return(keyword, value);
+    }
+
     private Stmt varDeclaration() {
         Token name = consume(IDENTIFIER, "Expect variable name.");
 
@@ -214,6 +239,45 @@ class Parser {
         Expr expr = expression();
         consume(SEMICOLON, "Expect ';' after expression.");
         return new Stmt.Expression(expr);
+    }
+
+    private Stmt.Function function(String kind) { 
+
+        // consume the identifier token for the functions name, the kind parameter is for when we reuse this grammar rule
+        // to parse methods inside classes when we do that we pass in  "method" for kind so that error messages are specific
+        // to the kidn of declaration being parse
+        Token name = consume(IDENTIFIER, "Expect " + kind + " name.");
+
+        // Parse the parameter list and the pair of parenthesis wrapped around it
+        // consumes the left parenthesis then makes a new array list for the paramters
+        consume(LEFT_PAREN, "Expect '(' after " + kind + " name");
+        // creates a list of tokens for the paramters
+        List<Token> parameters = new ArrayList<>();
+
+        // if it doesnt see the right parenthesis it executes this do-while statement
+        // adds all parametrs to the parameter tokens array aslong as it keeps finding commas for the next parameter
+        if (!check(RIGHT_PAREN)) {
+            do {
+                // errors if the parameter size exceeds 255
+                if (parameters.size() >= 255) {
+                    error(peek(), "Cant have more than 255 parameters");
+                }
+
+                // adds the current consumed paramter token to the array
+                parameters.add(consume(IDENTIFIER, "Expect parameter name"));
+            } while (match(COMMA));
+        }
+
+        // we end up with a list of tokens for each parameters name
+
+        // consumes the right parenthesis
+        consume(RIGHT_PAREN, "Expect ')' after parameters");
+
+        // consumes the left brace for the block because the fnction block() asusmes the brace token has already been matched
+        // consuming it here lets us report a more precise error message, the right brace is handled by the function
+        consume(LEFT_BRACE, "Expect '{' before " + kind + " body.");
+        List<Stmt> body = block();
+        return new Stmt.Function(name, parameters, body);
     }
 
     private List<Stmt> block() {
@@ -333,7 +397,45 @@ class Parser {
             return new Expr.Unary(operator, right);
         }
 
-        return primary();
+        return call();
+    }
+
+    // basically the arguments grammer rule translated to code
+    private Expr finishCall(Expr callee) {
+        List<Expr> arguments = new ArrayList<>();
+
+        // if arguments exist (if the brackets arent empty), it will continue to add arguments to the arguments list
+        // aslong as there is a comma after the current argument, once there isnt it will consume the right parenthesis and
+        // return the call function from the Expr syntax tree with the correct arguments
+        if (!check(RIGHT_PAREN)) {
+            do {
+                if (arguments.size() >= 255) {
+                    error(peek(), "Can't have more than 255 arguments");
+                }
+                arguments.add(expression());
+            } while (match(COMMA));
+        }
+
+        Token paren = consume(RIGHT_PAREN, "Expect ')' after arguments");
+
+        return new Expr.Call(callee, paren, arguments);
+    }
+
+    private Expr call() {
+        Expr expr = primary();
+
+        // runs an infinite loop when called that checks for a left parenthesis to look for the arguents
+        // if there is parameters it returns that, if not it goes to the primary function since its next to
+        // in the context free grammar
+        while(true) {
+            if(match(LEFT_PAREN)) {
+                expr = finishCall(expr);
+            } else {
+                break;
+            }
+        }
+
+        return expr;
     }
 
     private Expr primary() {

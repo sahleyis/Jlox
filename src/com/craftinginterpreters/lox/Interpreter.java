@@ -1,7 +1,9 @@
 package com.craftinginterpreters.lox;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     
@@ -11,6 +13,9 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     // this changes as we enter and leave local scope, it tracks the current environment but the new globals
     // holds a fixed reference to the outermost global environment
     private Environment environment = globals;
+
+    // a map that associates each syntax tree node with its resolved data
+    private final Map<Expr, Integer> locals = new HashMap<>();
 
     Interpreter() {
         globals.define("clock", new LoxCallable(){
@@ -97,8 +102,22 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     }
 
     @Override 
-    public Object visitVariableExpr(Expr.Variable expr) {
-        return environment.get(expr.name);
+    public Object visitVariableExpr(Expr.Variable expr) { 
+        return lookUpVariable(expr.name, expr);
+    }
+
+    private Object lookUpVariable(Token name, Expr expr) {
+
+        // look up the resolved distance in the map, remember only local variables are resolved
+        Integer distance = locals.get(expr);
+
+        // so if we dont find a distance in the map it must be global, in that case we look it up, dynamically, directly in the global 
+        // environment
+        if (distance != null) {
+            return environment.getAt(distance, name.lexeme);
+        } else {
+            return globals.get(name);
+        }
     }
 
     private Boolean isTruthy(Object object) {
@@ -139,6 +158,10 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
 
     private void execute(Stmt stmt) {
         stmt.accept(this);
+    }
+
+    void resolve(Expr expr, int depth) {
+        locals.put(expr, depth);
     }
 
     void executeBlock(List<Stmt> statements, Environment environment) {
@@ -248,7 +271,15 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     @Override
     public Object visitAssignExpr(Expr.Assign expr) {
         Object value = evaluate(expr.value);
-        environment.assign(expr.name, value);
+
+        // loop up the variables scope distance, if not found then we assume its global and handle it the same way as before
+        // otherwise we call the new method
+        Integer distance = locals.get(expr);
+        if (distance != null) {
+            environment.assignAt(distance, expr.name, value);
+        } else {
+            globals.assign(expr.name, value);
+        }
         return value;
     }
 

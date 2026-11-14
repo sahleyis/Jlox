@@ -87,6 +87,29 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     }
 
     @Override 
+    public Object visitSetExpr(Expr.Set expr) {
+
+        // evaluate the object whos property is being set
+        Object object = evaluate(expr.object);
+
+        // cehck if its a loxinstance, if not then its a runtime error
+        if (!(object instanceof LoxInstance)) {
+            throw new RuntimeError(expr.name, "Only instances have fields");
+        }
+
+        // we evaluate the value being set and store it on the instance
+        Object value = evaluate(expr.value);
+        ((LoxInstance)object).set(expr.name, value);
+        return value;
+    }
+
+    @Override 
+    public Object visitThisExpr(Expr.This expr) {
+        return lookUpVariable(expr.keyword, expr);
+    }
+
+    @SuppressWarnings("incomplete-switch")
+    @Override 
     public Object visitUnaryExpr(Expr.Unary expr ) {
         Object right = evaluate(expr.right);
 
@@ -181,6 +204,23 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     @Override 
     public Void visitBlockStmt(Stmt.Block stmt) {
         executeBlock(stmt.statements, new Environment(environment));
+        return null;
+    }
+
+    @Override 
+    public Void visitClassStmt(Stmt.Class stmt) {
+        environment.define(stmt.name.lexeme, null);
+
+        // when we interpret a class declaration statement, we turn its AST node into its runtime expression, new we need to do that for the methodsi n the class aswell
+        // each method declaration blossoms into a LoxFunction object.
+        Map<String, LoxFunction> methods = new HashMap<>();
+        for (Stmt.Function method : stmt.methods) {
+            LoxFunction function = new LoxFunction(method, environment);
+            methods.put(method.name.lexeme, function);
+        }
+
+        LoxClass klass = new LoxClass(stmt.name.lexeme, methods);
+        environment.assign(stmt.name, klass);
         return null;
     }
 
@@ -284,6 +324,7 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     }
 
     
+    @SuppressWarnings("incomplete-switch")
     @Override
     public Object visitBinaryExpr(Expr.Binary expr) {
         Object left = evaluate(expr.left);
@@ -366,6 +407,21 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         return function.call(this, arguments);
     }
 
+    @Override 
+    public Object visitGetExpr(Expr.Get expr) {
+
+        // evaluate the expression whos property is being accessed, only instances of classes have poperites in Lox, if the oblject is of some other type then invoking a getter on it is a runtime error
+
+        // if the object is a LoxInstance, we ask to lookup the property
+        Object object = evaluate(expr.object);
+        if (object instanceof LoxInstance) {
+            return ((LoxInstance) object).get(expr.name);
+        }
+
+        throw new RuntimeError(expr.name, "Only instances have properties");
+    }
+
+    @SuppressWarnings("unused")
     private void checkNumberOperand(Token operator, Object operand) {
         if (operand instanceof Double) {
             return;

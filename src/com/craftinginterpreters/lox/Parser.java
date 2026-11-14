@@ -38,6 +38,10 @@ class Parser {
                 return varDeclaration();
             }
 
+            if (match(CLASS)) {
+                return classDeclaration();
+            }
+
             // when we encounter the function keyword we call the function function() ( LOL ), we consume
             // the fun keyword
             if (match(FUN)) {
@@ -49,6 +53,25 @@ class Parser {
             synchronize();
             return null;
         }
+    }
+
+    private Stmt classDeclaration() {
+
+        // gets the name of the class and consumes the left brace
+        Token name = consume(IDENTIFIER, "Expect class name");
+        consume(LEFT_BRACE, "Expect '{' before class body");
+
+        // creates a list of functions for the methods
+        List<Stmt.Function> methods = new ArrayList<>();
+
+        // aslong as the block hasnt ended and it inst the end of the file, it adds method functions to the list
+        while(!check(RIGHT_BRACE) && !isAtEnd()) {
+            methods.add(function("method"));
+        }
+
+        // consumes the right brace then returns a new instance of the Class statement with the correct arguments
+        consume(RIGHT_BRACE, "Expect '}' after class body");
+        return new Stmt.Class(name, methods);
     }
 
     private Stmt statement() {
@@ -307,6 +330,9 @@ class Parser {
             if (expr instanceof Expr.Variable) {    
                 Token name = ((Expr.Variable)expr).name;
                 return new Expr.Assign(name, value);
+            } else if (expr instanceof Expr.Get) {
+                Expr.Get get = (Expr.Get)expr;
+                return new Expr.Set(get.object, get.name, value);
             }
 
             error(equals, "Invalid assignment target");
@@ -427,9 +453,14 @@ class Parser {
         // runs an infinite loop when called that checks for a left parenthesis to look for the arguents
         // if there is parameters it returns that, if not it goes to the primary function since its next to
         // in the context free grammar
+
+        // if it finds a dot instead of a parenthesis it consumes it and passes it into the Get Expression
         while(true) {
             if(match(LEFT_PAREN)) {
                 expr = finishCall(expr);
+            }else if (match(DOT)) {
+                Token name = consume(IDENTIFIER, "Expect property name after '.'");
+                expr = new Expr.Get(expr, name);
             } else {
                 break;
             }
@@ -451,6 +482,10 @@ class Parser {
 
         if (match(NUMBER, STRING)) {
             return new Expr.Literal(previous().literal);
+        }
+
+        if (match(THIS)) {
+            return new Expr.This(previous());
         }
 
         if (match(IDENTIFIER)){
@@ -522,6 +557,7 @@ class Parser {
         return new ParseError();
     }
 
+    @SuppressWarnings("incomplete-switch")
     private void synchronize() {
         advance();
 
